@@ -1,9 +1,15 @@
 <template>
   <div class="el-table"
-    :class="{ 'el-table--fit': fit, 'el-table--striped': stripe, 'el-table--border': border }"
+    :class="{
+      'el-table--fit': fit,
+      'el-table--striped': stripe,
+      'el-table--border': border,
+      'el-table--enable-row-hover': !store.states.isComplex,
+      'el-table--enable-row-transition': true || (store.states.data || []).length !== 0 && (store.states.data || []).length < 100
+    }"
     @mouseleave="handleMouseLeave($event)">
     <div class="hidden-columns" ref="hiddenColumns"><slot></slot></div>
-    <div class="el-table__header-wrapper" ref="headerWrapper">
+    <div class="el-table__header-wrapper" ref="headerWrapper" v-if="showHeader">
       <table-header
         :store="store"
         :layout="layout"
@@ -14,9 +20,11 @@
     <div class="el-table__body-wrapper" ref="bodyWrapper"
       :style="{ height: layout.bodyHeight ? layout.bodyHeight + 'px' : '' }">
       <table-body
+        :context="context"
         :store="store"
         :layout="layout"
         :row-class-name="rowClassName"
+        :row-style="rowStyle"
         :highlight="highlightCurrentRow"
         :style="{ width: layout.bodyWidth ? layout.bodyWidth - (layout.scrollY ? layout.gutterWidth : 0 ) + 'px' : '' }">
       </table-body>
@@ -30,7 +38,7 @@
         width: layout.fixedWidth ? layout.fixedWidth + 'px' : '',
         height: layout.viewportHeight ? layout.viewportHeight + 'px' : ''
       }">
-      <div class="el-table__fixed-header-wrapper" ref="fixedHeaderWrapper">
+      <div class="el-table__fixed-header-wrapper" ref="fixedHeaderWrapper" v-if="showHeader">
         <table-header
           fixed="left"
           :border="border"
@@ -49,6 +57,7 @@
           :layout="layout"
           :highlight="highlightCurrentRow"
           :row-class-name="rowClassName"
+          :row-style="rowStyle"
           :style="{ width: layout.fixedWidth ? layout.fixedWidth + 'px' : '' }">
         </table-body>
       </div>
@@ -60,7 +69,7 @@
         height: layout.viewportHeight ? layout.viewportHeight + 'px' : '',
         right: layout.scrollY ? layout.gutterWidth + 'px' : ''
       }">
-      <div class="el-table__fixed-header-wrapper" ref="rightFixedHeaderWrapper">
+      <div class="el-table__fixed-header-wrapper" ref="rightFixedHeaderWrapper" v-if="showHeader">
         <table-header
           fixed="right"
           :border="border"
@@ -78,6 +87,7 @@
           :store="store"
           :layout="layout"
           :row-class-name="rowClassName"
+          :row-style="rowStyle"
           :highlight="highlightCurrentRow"
           :style="{ width: layout.rightFixedWidth ? layout.rightFixedWidth + 'px' : '' }">
         </table-body>
@@ -129,7 +139,16 @@
 
       rowKey: [String, Function],
 
+      context: {},
+
+      showHeader: {
+        type: Boolean,
+        default: true
+      },
+
       rowClassName: [String, Function],
+
+      rowStyle: [Object, Function],
 
       highlightCurrentRow: Boolean,
 
@@ -167,6 +186,7 @@
 
       toggleRowSelection(row, selected) {
         this.store.toggleRowSelection(row, selected);
+        this.store.updateAllSelected();
       },
 
       clearSelection() {
@@ -186,20 +206,22 @@
         const { bodyWrapper, headerWrapper } = this.$refs;
         const refs = this.$refs;
         bodyWrapper.addEventListener('scroll', function() {
-          headerWrapper.scrollLeft = this.scrollLeft;
+          if (headerWrapper) headerWrapper.scrollLeft = this.scrollLeft;
           if (refs.fixedBodyWrapper) refs.fixedBodyWrapper.scrollTop = this.scrollTop;
           if (refs.rightFixedBodyWrapper) refs.rightFixedBodyWrapper.scrollTop = this.scrollTop;
         });
 
-        mousewheel(headerWrapper, throttle(16, function(event) {
-          const deltaX = event.deltaX;
+        if (headerWrapper) {
+          mousewheel(headerWrapper, throttle(16, function(event) {
+            const deltaX = event.deltaX;
 
-          if (deltaX > 0) {
-            bodyWrapper.scrollLeft = bodyWrapper.scrollLeft + 10;
-          } else {
-            bodyWrapper.scrollLeft = bodyWrapper.scrollLeft - 10;
-          }
-        }));
+            if (deltaX > 0) {
+              bodyWrapper.scrollLeft = bodyWrapper.scrollLeft + 10;
+            } else {
+              bodyWrapper.scrollLeft = bodyWrapper.scrollLeft - 10;
+            }
+          }));
+        }
 
         if (this.fit) {
           this.windowResizeListener = throttle(50, () => {
@@ -287,7 +309,8 @@
       const layout = new TableLayout({
         store,
         table: this,
-        fit: this.fit
+        fit: this.fit,
+        showHeader: this.showHeader
       });
       return {
         store,
